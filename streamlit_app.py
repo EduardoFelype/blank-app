@@ -101,6 +101,23 @@ if arquivo_previa and arquivo_base:
         ax_bar.set_xlabel("Status do Circuito")
         ax_bar.set_title("Comparação dos Circuitos entre Prévia e Base")
 
+                # Gráfico de barras para SLA_Status
+        st.subheader("📊 SLA Excedido vs Não Excedido")
+        fig_bar_sla, ax_bar_sla = plt.subplots()
+        sla_counts = previa_final["SLA_Status"].value_counts()
+
+        ax_bar_sla.barh(sla_counts.index, sla_counts.values, color=["#ef476f", "#06d6a0", "#ffd166"])
+        ax_bar_sla.set_xlabel("Quantidade")
+        ax_bar_sla.set_ylabel("Status SLA")
+        ax_bar_sla.set_title("Comparação de SLA")
+        
+        # Adiciona os valores no final de cada barra
+        for i, v in enumerate(sla_counts.values):
+            ax_bar_sla.text(v + 0.5, i, str(v), va='center', fontweight='bold')
+
+        st.pyplot(fig_bar_sla)
+
+
         # Adiciona valores no topo das barras
         for i, v in enumerate(status_counts.values):
             ax_bar.text(i, v + 0.5, str(v), ha='center', fontweight='bold')
