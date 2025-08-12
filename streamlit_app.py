@@ -91,7 +91,9 @@ if arquivo_previa and arquivo_base:
 
         st.metric("Circuitos faltando na Prévia", resumo["Circuitos faltando na prévia"])
 
-               
+               # Gráfico de barras para status dos circuitos
+        st.subheader("📊 Status dos Circuitos (Comparação Prévia x Base)")
+        status_counts = previa_final["Status_Circuito"].value_counts()
 
         fig_bar, ax_bar = plt.subplots()
         ax_bar.bar(status_counts.index, status_counts.values, color=["#118ab2", "#ef476f", "#ffd166"])
@@ -122,10 +124,7 @@ if arquivo_previa and arquivo_base:
 
         st.pyplot(fig_bar)
 
-# Gráfico de barras para status dos circuitos
-        st.subheader("📊 Status dos Circuitos (Comparação Prévia x Base)")
-        status_counts = previa_final["Status_Circuito"].value_counts()
-        
+
         # Mostrar circuitos extras e faltantes
         st.subheader("⚠️ Circuitos Extras na Prévia")
         if extras_na_previa:
