@@ -124,8 +124,7 @@ if arquivo_previa and arquivo_base:
 
         st.pyplot(fig_bar)
 
-      # Gráfico de barras para status dos circuitos
-        st.subheader("📊 Status dos Circuitos (Comparação Prévia x Base)")
+
         # Mostrar circuitos extras e faltantes
         st.subheader("⚠️ Circuitos Extras na Prévia")
         if extras_na_previa:
