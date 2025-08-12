@@ -91,13 +91,22 @@ if arquivo_previa and arquivo_base:
 
         st.metric("Circuitos faltando na Prévia", resumo["Circuitos faltando na prévia"])
 
-        # Gráfico de pizza para SLA_Status
-        st.subheader("📊 Distribuição do Status SLA")
-        sla_counts = previa_final["SLA_Status"].value_counts()
-        fig, ax = plt.subplots()
-        ax.pie(sla_counts.values, labels=sla_counts.index, autopct='%1.1f%%', startangle=140, colors=["#ef476f", "#06d6a0", "#ffd166"])
-        ax.axis('equal')
-        st.pyplot(fig)
+               # Gráfico de barras para status dos circuitos
+        st.subheader("📊 Status dos Circuitos (Comparação Prévia x Base)")
+        status_counts = previa_final["Status_Circuito"].value_counts()
+
+        fig_bar, ax_bar = plt.subplots()
+        ax_bar.bar(status_counts.index, status_counts.values, color=["#118ab2", "#ef476f", "#ffd166"])
+        ax_bar.set_ylabel("Quantidade")
+        ax_bar.set_xlabel("Status do Circuito")
+        ax_bar.set_title("Comparação dos Circuitos entre Prévia e Base")
+
+        # Adiciona valores no topo das barras
+        for i, v in enumerate(status_counts.values):
+            ax_bar.text(i, v + 0.5, str(v), ha='center', fontweight='bold')
+
+        st.pyplot(fig_bar)
+
 
         # Mostrar circuitos extras e faltantes
         st.subheader("⚠️ Circuitos Extras na Prévia")
