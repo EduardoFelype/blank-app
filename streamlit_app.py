@@ -1,4 +1,3 @@
-# painel_validacao.py
 import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
@@ -19,10 +18,23 @@ if arquivo_previa and arquivo_base:
         col_circuito = "Circuito"
         col_disp_mensal = "Disponibilidade"
         col_sla_disp = "SLA disponibilidade"
+        col_valor_contratado = "Valor Contratado" # Nova coluna para o valor contratado
 
         # Ler Prévia
         previa = pd.read_excel(arquivo_previa)
         previa.columns = previa.columns.str.strip()
+
+        # Garantir que as colunas de porcentagem sejam tratadas como decimais
+        # Se os valores no Excel são 95 para 95%, divida por 100. Se já são 0.95, não faça nada.
+        # Assumindo que podem vir como 95, 95.0, etc. e precisam ser convertidos para 0.95
+        for col in [col_disp_mensal, col_sla_disp]:
+            if col in previa.columns:
+                # Tenta converter para numérico, erros viram NaN
+                previa[col] = pd.to_numeric(previa[col], errors='coerce')
+                # Verifica se os valores são maiores que 1 (indicando que não são decimais)
+                # e se não são NaN (para evitar divisão de NaN)
+                if (previa[col] > 1).any():
+                    previa[col] = previa[col] / 100
 
         # Ler Base (todas as abas e concatenar)
         abas_base = pd.read_excel(arquivo_base, sheet_name=None)
@@ -30,10 +42,12 @@ if arquivo_previa and arquivo_base:
         base_all.columns = base_all.columns.str.strip()
 
         # Colunas F e G da base (posições 5 e 6, zero-indexed)
-        col_f = base_all.columns[5]
-        col_g = base_all.columns[6]
+        # Adicionar 'Valor Contratado' da base se existir
+        base_cols_to_merge = [col_circuito, base_all.columns[5], base_all.columns[6]]
+        if col_valor_contratado in base_all.columns:
+            base_cols_to_merge.append(col_valor_contratado)
 
-        base_subset = base_all[[col_circuito, col_f, col_g]].copy()
+        base_subset = base_all[base_cols_to_merge].copy()
 
         # Verificação SLA
         def verificar_sla(row):
@@ -57,7 +71,7 @@ if arquivo_previa and arquivo_base:
         faltantes_na_previa = circuitos_base - circuitos_previa
         extras_na_previa = circuitos_previa - circuitos_base
 
-        # Merge para juntar colunas F e G na prévia
+        # Merge para juntar colunas F, G e Valor Contratado na prévia
         previa_final = pd.merge(
             previa,
             base_subset,
@@ -65,6 +79,18 @@ if arquivo_previa and arquivo_base:
             how="left",
             suffixes=("", "_Base")
         )
+
+        # Calcular Penalidade
+        previa_final["Valor Contratado"] = pd.to_numeric(previa_final["Valor Contratado"], errors='coerce')
+        previa_final["Penalidade"] = 0.0 # Inicializa a coluna de penalidade
+
+        # Aplica a fórmula apenas quando o SLA for excedido
+        condicao_sla_excedido = (previa_final["SLA_Status"] == "Excedido") & \
+                               (previa_final[col_valor_contratado].notna()) & \
+                               (previa_final[col_disp_mensal].notna())
+
+        previa_final.loc[condicao_sla_excedido, "Penalidade"] = \
+            (previa_final[col_valor_contratado] * previa_final[col_disp_mensal]) - previa_final[col_valor_contratado]
 
         # Resumo
         resumo = {
@@ -74,7 +100,8 @@ if arquivo_previa and arquivo_base:
             "SLA Não Excedido": (previa_final["SLA_Status"] == "Não Excedido").sum(),
             "SLA Dados faltando/erro": (~previa_final["SLA_Status"].isin(["Excedido", "Não Excedido"])).sum(),
             "Circuitos extras na prévia": len(extras_na_previa),
-            "Circuitos faltando na prévia": len(faltantes_na_previa)
+            "Circuitos faltando na prévia": len(faltantes_na_previa),
+            "Total Penalidade Calculada": previa_final["Penalidade"].sum()
         }
 
         # Mostrar resumo com métricas lado a lado
@@ -85,13 +112,14 @@ if arquivo_previa and arquivo_base:
         col3.metric("SLA Excedido", resumo["SLA Excedido"])
         col4.metric("SLA Não Excedido", resumo["SLA Não Excedido"])
 
-        col5, col6 = st.columns(2)
+        col5, col6, col7 = st.columns(3)
         col5.metric("SLA Dados faltando/erro", resumo["SLA Dados faltando/erro"])
         col6.metric("Circuitos extras na Prévia", resumo["Circuitos extras na prévia"])
+        col7.metric("Circuitos faltando na Prévia", resumo["Circuitos faltando na prévia"])
 
-        st.metric("Circuitos faltando na Prévia", resumo["Circuitos faltando na prévia"])
+        st.metric("Total Penalidade Calculada", f"R$ {resumo['Total Penalidade Calculada']:.2f}")
 
-               # Gráfico de barras para status dos circuitos
+        # Gráfico de barras para status dos circuitos
         st.subheader("📊 Status dos Circuitos (Comparação Prévia x Base)")
         status_counts = previa_final["Status_Circuito"].value_counts()
 
@@ -100,23 +128,6 @@ if arquivo_previa and arquivo_base:
         ax_bar.set_ylabel("Quantidade")
         ax_bar.set_xlabel("Status do Circuito")
         ax_bar.set_title("Comparação dos Circuitos entre Prévia e Base")
-
-                # Gráfico de barras para SLA_Status
-        st.subheader("📊 SLA Excedido vs Não Excedido")
-        fig_bar_sla, ax_bar_sla = plt.subplots()
-        sla_counts = previa_final["SLA_Status"].value_counts()
-
-        ax_bar_sla.barh(sla_counts.index, sla_counts.values, color=["#ef476f", "#06d6a0", "#ffd166"])
-        ax_bar_sla.set_xlabel("Quantidade")
-        ax_bar_sla.set_ylabel("Status SLA")
-        ax_bar_sla.set_title("Comparação de SLA")
-        
-        # Adiciona os valores no final de cada barra
-        for i, v in enumerate(sla_counts.values):
-            ax_bar_sla.text(v + 0.5, i, str(v), va='center', fontweight='bold')
-
-        st.pyplot(fig_bar_sla)
-
 
         # Adiciona valores no topo das barras
         for i, v in enumerate(status_counts.values):
@@ -140,14 +151,21 @@ if arquivo_previa and arquivo_base:
 
         # Mostrar tabela completa
         st.subheader("📋 Dados Completos (Prévia + Base)")
-        st.dataframe(previa_final)
+        # Formatar colunas de porcentagem para exibição
+        df_display = previa_final.copy()
+        for col in [col_disp_mensal, col_sla_disp]:
+            if col in df_display.columns:
+                df_display[col] = df_display[col].apply(lambda x: f"{x:.2%}" if pd.notna(x) else x)
+        df_display["Penalidade"] = df_display["Penalidade"].apply(lambda x: f"R$ {x:.2f}" if pd.notna(x) else x)
+
+        st.dataframe(df_display)
 
         # Botão para download Excel
         def to_excel(df):
             output = BytesIO()
             writer = pd.ExcelWriter(output, engine='openpyxl')
             df.to_excel(writer, index=False)
-            writer.save()
+            writer.close() # Use close() instead of save() for newer pandas versions
             processed_data = output.getvalue()
             return processed_data
 
@@ -165,3 +183,5 @@ if arquivo_previa and arquivo_base:
 
 else:
     st.info("⏳ Por favor, envie os dois arquivos Excel para começar a validação.")
+
+
