@@ -77,10 +77,9 @@ Baixe o resultado consolidado em Excel.
 📌 Tecnologias usadas
 Python 3.11+
 
-Streamlit
-
-Pandas
-
-OpenPyXL
-
-Matplotlib
+streamlit
+pandas
+openpyxl
+matplotlib
+plotly
+seaborn
